@@ -1,8 +1,7 @@
 # Overleaf Codex Bridge For AI Agents
 
-<a href="https://buymeacoffee.com/mira.ai">
-  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" width="180">
-</a>
+[![中文README](https://img.shields.io/badge/README-中文-blue?style=flat-square)](README.zh-CN.md)
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-mira.ai-FFDD00?style=flat-square&logo=buymeacoffee&logoColor=000)](https://buymeacoffee.com/mira.ai)
 
 Use this repository when a user asks Codex, Claude, or another MCP-capable AI agent to operate an already-open free Overleaf paper project without Overleaf Premium Git sync.
 
