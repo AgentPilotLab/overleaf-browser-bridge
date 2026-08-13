@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Overleaf Codex Bridge",
+  "version": "0.5.29",
+  "description": "Bridge an open Overleaf paper project to a local Codex MCP workspace.",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "https://*.overleaf.com/project/*",
+    "http://127.0.0.1:38475/*",
+    "http://localhost:38475/*"
+  ],
+  "action": {
+    "default_title": "Overleaf Codex Bridge",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.overleaf.com/project/*"
+      ],
+      "js": [
+        "pageBridge.js"
+      ],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://*.overleaf.com/project/*"
+      ],
+      "js": [
+        "contentScript.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

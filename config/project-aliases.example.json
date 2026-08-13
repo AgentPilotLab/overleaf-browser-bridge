@@ -1,0 +1,10 @@
+{
+  "aliases": {
+    "paper": {
+      "projectTitle": "Visible Overleaf Project Title"
+    },
+    "thesis": {
+      "projectTitle": "Another Open Project Title"
+    }
+  }
+}

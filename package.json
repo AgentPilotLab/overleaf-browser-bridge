@@ -1,0 +1,79 @@
+{
+  "name": "overleaf-browser-bridge",
+  "version": "0.5.29",
+  "description": "AI-agent-first paper workspace bridge for controlling free Overleaf editor projects from Codex and Claude without Premium Git sync.",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "commonjs",
+  "bin": {
+    "overleaf-browser-bridge": "bin/overleaf-browser-bridge.js",
+    "overleaf-browser-bridge-mcp": "bin/overleaf-browser-bridge.js"
+  },
+  "files": [
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "LIVE_TEST_CHECKLIST.md",
+    "README.md",
+    "RELEASE_CHECKLIST.md",
+    "SECURITY.md",
+    "bin/",
+    "config/",
+    "docs/",
+    "extension/",
+    "llms.txt",
+    "scripts/",
+    "server/",
+    "tests/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AgentPilotLab/overleaf-browser-bridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AgentPilotLab/overleaf-browser-bridge/issues"
+  },
+  "homepage": "https://github.com/AgentPilotLab/overleaf-browser-bridge#readme",
+  "keywords": [
+    "overleaf",
+    "codex",
+    "claude",
+    "mcp",
+    "model-context-protocol",
+    "ai-agent",
+    "ai-tools",
+    "chrome-extension",
+    "latex",
+    "research-writing",
+    "browser-bridge",
+    "local-first",
+    "overleaf-mcp",
+    "codex-mcp",
+    "claude-mcp"
+  ],
+  "scripts": {
+    "start": "node server/overleaf-bridge-mcp.js",
+    "test": "node tests/server.test.js",
+    "mcp": "node server/overleaf-bridge-mcp.js",
+    "doctor": "node scripts/doctor.js",
+    "release:check": "node scripts/doctor.js && node tests/server.test.js",
+    "release:assets": "node scripts/prepare-release-assets.js",
+    "release:preflight": "node scripts/release-preflight.js",
+    "release:candidate": "node scripts/release-candidate-check.js",
+    "release:decision": "node scripts/release-decision-report.js",
+    "sync:mirror": "node scripts/mirror-sync-workflow.js",
+    "extension:build": "node scripts/prepare-extension-build.js",
+    "config:mcp": "node scripts/generate-mcp-config.js",
+    "first-run": "node scripts/first-run-check.js",
+    "live:verify": "node scripts/post-install-live-check.js",
+    "live:suite": "node scripts/live-safe-suite.js",
+    "repo:metadata": "node scripts/repository-metadata-check.js",
+    "package:npm": "node scripts/package-npm-check.js",
+    "live:sections": "node scripts/live-section-noop-test.js",
+    "live:context": "node scripts/live-context-budget-test.js",
+    "package:extension": "powershell -ExecutionPolicy Bypass -File scripts/package-extension.ps1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

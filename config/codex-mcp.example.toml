@@ -1,0 +1,9 @@
+# Example only. Do not blindly overwrite your global Codex config.
+# Add this MCP server entry to the MCP section used by your Codex environment.
+
+[mcp_servers.overleaf_browser_bridge]
+command = "node"
+args = [
+  "<ABSOLUTE_REPO_PATH>\\server\\overleaf-bridge-mcp.js"
+]
+env = {}

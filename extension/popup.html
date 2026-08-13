@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Overleaf Codex Bridge</title>
+    <style>
+      body {
+        width: 320px;
+        margin: 0;
+        padding: 12px;
+        font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #1f2933;
+      }
+      label {
+        display: block;
+        margin: 10px 0 4px;
+        font-weight: 600;
+      }
+      input {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 7px 8px;
+        border: 1px solid #c8d0d8;
+        border-radius: 4px;
+        font: inherit;
+      }
+      button {
+        margin-top: 12px;
+        margin-right: 6px;
+        padding: 7px 10px;
+        border: 1px solid #1b6f5a;
+        border-radius: 4px;
+        background: #207c65;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.secondary {
+        border-color: #94a3b8;
+        background: #fff;
+        color: #334155;
+      }
+      dl {
+        display: grid;
+        grid-template-columns: 92px 1fr;
+        gap: 4px 8px;
+        margin: 12px 0 0;
+      }
+      dt {
+        color: #64748b;
+      }
+      dd {
+        margin: 0;
+        word-break: break-word;
+      }
+      #status {
+        min-height: 20px;
+        margin-top: 10px;
+        color: #475569;
+      }
+    </style>
+  </head>
+  <body>
+    <strong>Overleaf Codex Bridge</strong>
+    <label for="serverUrl">Server URL</label>
+    <input id="serverUrl" spellcheck="false" value="http://127.0.0.1:38475">
+    <label for="token">Bridge token (optional)</label>
+    <input id="token" spellcheck="false" type="password" placeholder="Optional: .runtime/bridge-token.txt">
+    <button id="save">Save</button>
+    <button id="test" type="button">Test</button>
+    <dl>
+      <dt>Token</dt><dd id="tokenState">Unknown</dd>
+      <dt>Tab</dt><dd id="tabState">Unknown</dd>
+      <dt>Project</dt><dd id="projectState">Unknown</dd>
+      <dt>File</dt><dd id="fileState">Unknown</dd>
+    </dl>
+    <div id="status"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

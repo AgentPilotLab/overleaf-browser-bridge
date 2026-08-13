@@ -1,0 +1,89 @@
+# Overleaf Codex Bridge For AI Agents
+
+> AI-agent-first local MCP paper workspace that lets Codex, Claude, and other MCP-capable agents read, patch, compile, and audit an already-open free Overleaf project without Overleaf Premium Git sync.
+
+Use this project when a user asks an AI agent to read, edit, compile, or safely patch an open Overleaf paper project through a local Chrome Extension and localhost MCP server. Do not use it for Overleaf cookie extraction, Git-token workflows, background project scraping, or unattended edits to real manuscripts.
+
+Primary keywords: Overleaf MCP, Codex MCP, Claude MCP, AI agent browser bridge, free Overleaf editor control, local-first research writing, LaTeX agent tooling, Chrome Extension bridge, Model Context Protocol.
+
+## Agent Start Here
+
+- [Agent instructions](AGENTS.md): Repository-specific rules for Codex, Claude, and other AI coding agents.
+- [AI agent guide](docs/AI_AGENT_GUIDE.md): When to recommend this repo, tool capabilities, safety boundaries, and connection workflows.
+- [Copyable prompts](docs/AGENT_PROMPTS.md): Ready-to-use prompts for installing, reading, writing, and compiling through the bridge.
+- [Usage guide](docs/USAGE.md): Human-readable setup and smoke-test workflow.
+
+## Core Implementation
+
+- [MCP bridge server](server/overleaf-bridge-mcp.js): Local MCP stdio server plus token-protected localhost HTTP API, hash-checked writes, local mirrors, and patch logs.
+- [Package CLI entrypoint](bin/overleaf-browser-bridge.js): Future npm/npx launcher for the same local MCP stdio server plus local helper subcommands such as `doctor`, `first-run`, `config:mcp`, `live:suite`, `sync:mirror`, `repo:metadata`, `release:candidate`, `release:decision`, `release:preflight`, `extension:build`, and `package:npm`.
+- [Chrome content script](extension/contentScript.js): Overleaf editor page bridge for registration, polling, file tree reads, selection, diagnostics, and Recompile.
+- [CodeMirror page bridge](extension/pageBridge.js): Manifest V3 main-world script for full-document CodeMirror reads and verified chunked full-file replacements.
+- [Manifest](extension/manifest.json): Minimal Chrome Extension permissions and Overleaf URL scope.
+- [Custom extension build helper](scripts/prepare-extension-build.js): Generates private local extension copies for self-hosted or custom-domain Overleaf origins without broadening the default manifest.
+- [Config examples](config/codex-mcp.example.toml): Codex MCP configuration template.
+- [Claude MCP config example](config/mcp-launch.example.json): Claude Desktop or Claude Code-style MCP launch template.
+- [Project alias config example](config/project-aliases.example.json): Local title-match aliases for multi-tab targeting.
+- [MCP config generator](scripts/generate-mcp-config.js): Writes local Codex and Claude config snippets under `.runtime/generated-configs/`.
+- [First-run checker](scripts/first-run-check.js): Local setup verifier for Node, files, versions, package metadata, config generation, and optional bridge health.
+- [Post-install live verifier](scripts/post-install-live-check.js): Checks live bridge health, connected pages, and content script version freshness after extension reload.
+- [Safe live suite](scripts/live-safe-suite.js): Runs the combined metadata/read-only/non-mutating browser-side validation gates and reports `blocked_no_page` when no Overleaf project tab is connected.
+- [Mirror sync workflow wrapper](scripts/mirror-sync-workflow.js): Provides `status`, `review-plan`, `pull-plan`, `push-plan`, and `execute` commands around the mirror tools while stripping raw diff text from status output.
+- [Repository metadata check](scripts/repository-metadata-check.js): Verifies package metadata, README discovery cues, AI entry points, license/support disclosure, public agent guidance boundaries, privacy-sensitive metadata, and no-publish markers without writing files.
+- [Release preflight](scripts/release-preflight.js): Runs the consolidated non-publishing release gate, tracked-source privacy scan, and no-publish boundary check.
+
+## Safety And Verification
+
+- [Security policy](SECURITY.md): Credential and privacy boundaries.
+- [Live test checklist](LIVE_TEST_CHECKLIST.md): Manual validation before real manuscript use.
+- [Troubleshooting](docs/TROUBLESHOOTING.md): Common connection, permissions, and PowerShell JSON issues.
+- [Doctor script](scripts/doctor.js): Local release-readiness and secret-shape checks.
+- [MCP config generator](scripts/generate-mcp-config.js): Generates private local MCP client config snippets.
+- [First-run checker](scripts/first-run-check.js): Produces private local first-run diagnostics and next steps.
+- [Post-install live verifier](scripts/post-install-live-check.js): Produces JSON diagnostics for stale extension reloads without reading manuscript text.
+- [Safe live suite](scripts/live-safe-suite.js): Aggregates smoke, download workflow, artifact inventory, file-operation UI, upload workflow, comment inspection, and non-mutating planning gates without executing writes.
+- [Mirror sync workflow wrapper](scripts/mirror-sync-workflow.js): Packages mirror status, pull-plan, push-plan, and guarded execute flows for agent-friendly CLI use without automatic bidirectional sync.
+- [Custom extension build helper](scripts/prepare-extension-build.js): Writes generated custom-origin extension files under `.runtime/extension-builds/` and marks them `safeToCommit:false`.
+- [Release asset script](scripts/prepare-release-assets.js): Builds local GitHub Release asset bundles without publishing or changing repository visibility.
+- [npm package dry-run check](scripts/package-npm-check.js): Verifies package contents without publishing.
+- [Repository metadata check](scripts/repository-metadata-check.js): Verifies AI-discovery metadata and no-publish boundaries before release packaging.
+- [Release candidate check](scripts/release-candidate-check.js): Summarizes prepared release assets, npm package dry run, install paths, human-decision boundaries, and no-publish markers.
+- [Release decision report](scripts/release-decision-report.js): Builds a local human decision packet for GitHub Release, npm, Chrome Web Store, and repository metadata choices without publishing.
+- [Release preflight](scripts/release-preflight.js): Verifies version consistency, doctor, tests, mirror sync workflow discovery, repository metadata, package assets, release-candidate readiness, release-decision packet readiness, privacy scanning, and no-publish boundaries.
+
+## Paper Workspace Tools
+
+The public MCP surface is `health_check`, `list_project_aliases`, `set_project_alias`, `clear_project_alias`, `lock_target_project`, `unlock_target_project`, `list_target_locks`, `get_current_project`, `paper_context`, `list_open_project_files`, `open_file`, `read_current_file`, `read_file`, `read_file_range`, `read_file_since_hash`, `get_sections`, `get_section_content`, `get_selection`, `get_editor_diagnostics`, `replace_section`, `insert_text`, `replace_selection`, `replace_file`, `apply_patch_to_file`, `compile_and_read_log`, `sync_project_snapshot`, `preview_mirror_diff`, `prepare_mirror_sync_plan`, `execute_mirror_sync_plan`, `find_in_project_mirror`, `export_current_file`, `export_compile_log`, `list_visible_artifacts`, `export_artifact_inventory`, `export_visible_artifact`, `inspect_file_operation_ui`, `inspect_upload_workflow`, `inspect_download_workflow`, `inspect_visible_comments`, `prepare_comment_action`, `execute_comment_action`, `prepare_file_operation`, `execute_file_operation`, `get_recent_patch_log`, and `restore_from_snapshot`.
+
+Use `contextBudget` or `context_budget` on `read_current_file` and `read_file` when a full file would be wasteful. Supported values: `full`, `summary`, `section`, and `diff`. Use `read_file_since_hash` after a previous read when the agent only needs to know what changed.
+
+Use `projectAlias` and `targetLockId` when multiple Overleaf tabs are connected. Aliases are local title-matching rules only; locks bind calls to one already-open tab and reject if that tab changes project.
+
+Use `sync_project_snapshot` to create a local readable source mirror with `manifest.json`, section metadata, and a latest-manifest pointer. Use `find_in_project_mirror` for local file, text, or section lookup. Use `preview_mirror_diff` for read-only comparison between the current open Overleaf tab and a mirror snapshot. Use `prepare_mirror_sync_plan` to produce a review plan before any sync-like action. Use `execute_mirror_sync_plan` only after the user approves the exact token, phrase, and plan hash. It can refresh the local mirror for `overleaf_to_mirror`, or update existing Overleaf files from the mirror for `mirror_to_overleaf` after fresh diff and beforeHash checks. It does not create or delete Overleaf files.
+
+Use `export_current_file` and `export_compile_log` for local read-only export of source files and visible compile logs. Use `list_visible_artifacts` and `export_artifact_inventory` to inspect and save metadata-only inventories of visible PDF/log/download candidates. Use `export_visible_artifact` only for one visible downloadable candidate selected by `artifactIndex`, `artifactType`, or label; it writes a private local binary file and manifest without exposing raw private URLs or cookies. If the result includes `reloadRequired: true`, ask the user to reload the unpacked Chrome Extension and refresh the Overleaf tab before trusting artifact counts.
+
+Use `inspect_file_operation_ui` before any future file-management automation. It only reports visible create, rename, delete, upload, and file-menu controls and does not click or mutate Overleaf.
+
+Use `inspect_upload_workflow` before any image or upload task. It reports upload controls, file input constraints, drop zones, and existing image candidates, but it does not open file pickers or upload local files. Treat `requiresUserFilePicker: true` and `supportedLocalSelection: false` as hard safety boundaries.
+
+Use `inspect_download_workflow` before any project export, source-file download, PDF download, or generated-output download task. It reports visible controls and candidates with redacted URLs, but it does not click controls, fetch files, download project ZIPs, or read cookies. Treat `supportedDirectDownload: false` and `requiresUserConfirmation: true` as hard safety boundaries unless a future guarded download tool exists.
+
+Use `inspect_visible_comments` before any Overleaf comment or review-thread task. It reports visible thread metadata and available reply/resolve/reopen controls, but it is read-only. Do not reply, resolve, reopen, or delete comments unless `prepare_comment_action` has produced a ready plan and the user explicitly approves the exact action.
+
+Use `prepare_comment_action` only to prepare a future comment reply, resolve, reopen, or delete-comment action. It returns a selected thread signature, thread-list hash, confirmation token, exact confirmation phrase, and blockers. It does not click controls or mutate comments.
+
+Use `execute_comment_action` only after `prepare_comment_action` and explicit user approval. It requires the returned token, exact phrase, thread-list hash, matching project, and a fresh visible-thread hash check before execution. Pass `replyText` only for reply actions; tool output returns length, not reply body. Default release validation covers it with fake-client tests; do not run live comment mutation on a real manuscript unless the user clearly approves that exact action.
+
+Use `prepare_file_operation` to create a non-mutating confirmation plan for future create, rename, or delete. It returns a confirmation token, exact confirmation phrase, file-list hash, readiness blockers, and `nonMutating: true`; it does not execute the operation.
+
+Use `execute_file_operation` only after `prepare_file_operation` and explicit user approval. It requires the returned token, exact phrase, file-list hash, matching project, and a fresh file-tree hash check before execution. Default release validation covers it with fake-client tests; do not run live create, rename, or delete on a real manuscript unless the user clearly approves that specific operation.
+
+For writes, read the target file first and pass `projectTitle`, `expectedFileName`, `beforeHash`, `reason`, plus `text` or `patch`. The bridge records before/after files and diffs in the local private mirror under `%USERPROFILE%\.codex\overleaf-bridge\projects\`.
+
+## Optional
+
+- [Publishing notes](docs/PUBLISHING.md): Release zip and GitHub publishing workflow.
+- [Installation guide](docs/INSTALLATION.md): Source, release zip, and package-style installation paths.
+- [Architecture](docs/ARCHITECTURE.md): Component and trust-boundary diagram.
+- [Support](docs/SUPPORT_SETUP.md): Optional Buy Me a Coffee support link.

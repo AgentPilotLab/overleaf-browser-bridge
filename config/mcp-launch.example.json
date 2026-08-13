@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "overleaf_browser_bridge": {
+      "command": "node",
+      "args": [
+        "<ABSOLUTE_REPO_PATH>\\server\\overleaf-bridge-mcp.js"
+      ],
+      "env": {}
+    }
+  }
+}
