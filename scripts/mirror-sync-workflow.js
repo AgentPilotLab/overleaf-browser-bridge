@@ -2,6 +2,7 @@
 "use strict";
 
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
@@ -263,6 +264,7 @@ function sanitizeMessage(message) {
 function sanitizePath(text) {
   return String(text || "")
     .replace(new RegExp(escapeRegExp(ROOT), "gi"), "<REPO_ROOT>")
+    .replace(new RegExp(escapeRegExp(os.tmpdir()), "gi"), "<TEMP_DIR>")
     .replace(/C:\\Users\\[^\\\r\n]+/gi, "C:\\Users\\<USER>")
     .replace(new RegExp(`/${"Users"}/[^/\\r\\n]+`, "gi"), `/${"Users"}/<USER>`)
     .replace(new RegExp(`/${"home"}/[^/\\r\\n]+`, "gi"), `/${"home"}/<USER>`);

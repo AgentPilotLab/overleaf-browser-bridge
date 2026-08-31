@@ -356,6 +356,8 @@ async function main() {
     assert.strictEqual(mirrorExecute.ok, true);
     assert.strictEqual(mirrorExecute.toolName, "execute_mirror_sync_plan");
     assert.strictEqual(mirrorExecute.action, "overleaf_to_mirror");
+    assert.match(mirrorExecute.oldMirrorRoot, /^<TEMP_DIR>[\\/]/);
+    assert.match(mirrorExecute.newMirrorRoot, /^<TEMP_DIR>[\\/]/);
     assert.ok(!JSON.stringify(mirrorExecute).includes(tmp));
   } finally {
     await fakeMirrorServer.close();
@@ -424,7 +426,8 @@ async function main() {
   assert.strictEqual(sourceConfigSummary.safeToCommit, false);
   const generatedCodexToml = fs.readFileSync(path.join(sourceConfigOut, "codex-mcp.toml"), "utf8");
   assert.ok(generatedCodexToml.includes("[mcp_servers.overleaf_browser_bridge]"));
-  assert.ok(generatedCodexToml.includes("server\\\\overleaf-bridge-mcp.js"));
+  const expectedCodexServerPath = path.join(fakeRepoPath, "server", "overleaf-bridge-mcp.js").replace(/\\/g, "\\\\");
+  assert.ok(generatedCodexToml.includes(expectedCodexServerPath));
   const generatedClaudeJson = JSON.parse(fs.readFileSync(path.join(sourceConfigOut, "mcp-launch.json"), "utf8"));
   assert.strictEqual(generatedClaudeJson.mcpServers.overleaf_browser_bridge.command, "node");
   assert.ok(generatedClaudeJson.mcpServers.overleaf_browser_bridge.args[0].endsWith(path.join("server", "overleaf-bridge-mcp.js")));
