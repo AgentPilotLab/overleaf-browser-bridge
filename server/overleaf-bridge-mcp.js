@@ -1888,7 +1888,7 @@ async function inspectFileOperationUi(state, args) {
 function normalizeFileOperationUiInspection(ui, client, args) {
   const result = ui && typeof ui === "object" ? { ...ui } : {};
   const controls = Array.isArray(result.controls) ? result.controls : [];
-  const hasSchemaMarker = Number(result.fileOperationUiSchemaVersion || 0) >= 11;
+  const hasSchemaMarker = Number(result.fileOperationUiSchemaVersion || 0) >= 12;
   const hasVisibleFolders = Array.isArray(result.visibleFolders);
   const hasControlScores = controls.every((control) => control && typeof control.score === "number");
   const hasCapabilities = result.capabilities && result.capabilities.rankedOperationControls === true && result.capabilities.visibleFolders === true;
@@ -3727,7 +3727,7 @@ async function handleMcpRequest(bridge, request) {
         result: {
           protocolVersion: "2024-11-05",
           capabilities: { tools: {} },
-          serverInfo: { name: "overleaf-browser-bridge", version: "0.5.33" }
+          serverInfo: { name: "overleaf-browser-bridge", version: "0.5.34" }
         }
       };
     }

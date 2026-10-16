@@ -2,8 +2,8 @@
 
 (() => {
   const DEFAULT_SERVER_URL = "http://127.0.0.1:38475";
-  const BRIDGE_VERSION = "0.5.33";
-  const FILE_OPERATION_UI_SCHEMA_VERSION = 11;
+  const BRIDGE_VERSION = "0.5.34";
+  const FILE_OPERATION_UI_SCHEMA_VERSION = 12;
   const POLL_DELAY_MS = 1000;
   const REGISTER_DELAY_MS = 5000;
   const CLIENT_ID_KEY = "overleafCodexBridgeClientId";
@@ -1757,7 +1757,14 @@
 
   async function selectParentFolderForCreate(fileName) {
     const parts = splitCreatePath(fileName);
-    if (!parts.parentPath) return parts.baseName;
+    if (!parts.parentPath) {
+      const rootContext = selectRootCreateContextEntry(collectFileTreeEntries());
+      if (!rootContext) throw new Error("no root-level file is visible for root file creation");
+      rootContext.element.scrollIntoView({ block: "center" });
+      rootContext.element.click();
+      await sleep(300);
+      return parts.baseName;
+    }
     const folder = findVisibleFolderTreeItem(parts.parentPath);
     if (!folder) {
       throw new Error(`parent folder is not visible in the Overleaf file tree: ${parts.parentPath}`);
@@ -1802,10 +1809,10 @@
           await expandFolderTreeItem(folder);
         }
       }
-      const item = findFileTreeItem(fileName);
+      const item = findExactFileTreeEntry(fileName, collectFileTreeEntries());
       if (item) {
-        item.scrollIntoView({ block: "center" });
-        return item;
+        item.element.scrollIntoView({ block: "center" });
+        return item.element;
       }
       await sleep(500);
     }
@@ -1820,6 +1827,22 @@
       parentPath: normalized.slice(0, index),
       baseName: normalized.slice(index + 1)
     };
+  }
+
+  function selectRootCreateContextEntry(entries) {
+    const rootFiles = Array.from(entries || []).filter((entry) => {
+      if (!entry || entry.kind !== "file") return false;
+      const path = normalizeFileName(entry.path || entry.fileName || "");
+      return path && !path.includes("/");
+    });
+    return rootFiles.find((entry) => entry.selected) || rootFiles[0] || null;
+  }
+
+  function findExactFileTreeEntry(fileName, entries) {
+    const needle = normalizeFileName(fileName);
+    return Array.from(entries || []).find((entry) =>
+      entry && entry.kind === "file" && normalizeFileName(entry.path) === needle
+    ) || null;
   }
 
   function findVisibleFolderTreeItem(folderPath) {
@@ -1997,6 +2020,8 @@
       fileNameMatches,
       isFileLikeName,
       splitCreatePath,
+      selectRootCreateContextEntry,
+      findExactFileTreeEntry,
       assertNoBlockingDialog,
       fillDialogTextAndConfirm,
       setNativeTextInputValue,

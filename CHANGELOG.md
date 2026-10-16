@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.34 - 2026-10-16
+
+- Select a visible root-level file before root file creation so Overleaf does not inherit a previously selected nested folder.
+- Verify newly created files by their exact tree path instead of accepting a matching basename in another folder.
+
 ## 0.5.33 - 2026-10-16
 
 - Prefer exact dialog-action labels over partial matches so localized navigation controls such as `新建文件` cannot outrank the actual `创建` confirmation button.
