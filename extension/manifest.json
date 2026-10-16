@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Overleaf Codex Bridge",
-  "version": "0.5.32",
+  "version": "0.5.33",
   "description": "Bridge an open Overleaf paper project to a local Codex MCP workspace.",
   "permissions": [
     "storage",

@@ -1,6 +1,6 @@
 {
   "name": "overleaf-browser-bridge",
-  "version": "0.5.32",
+  "version": "0.5.33",
   "description": "AI-agent-first paper workspace bridge for controlling free Overleaf editor projects from Codex and Claude without Premium Git sync.",
   "license": "SEE LICENSE IN LICENSE",
   "type": "commonjs",

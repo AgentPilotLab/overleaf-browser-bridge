@@ -116,15 +116,15 @@ async function checkFileOperationUiSchema(info, pages, pageSummaries, checks, op
         summary.fileOperationUiReloadRequired = Boolean(inspected.reloadRequired);
         summary.fileOperationUiStaleSchema = Boolean(inspected.staleSchema);
       }
-      if (inspected.reloadRequired || Number(inspected.fileOperationUiSchemaVersion || 0) < 10 || !Array.isArray(inspected.visibleFolders)) {
-        stale.push(`${page.projectTitle || page.clientId || "unknown page"}: ${inspected.reason || "missing file-operation UI schema v10"}`);
+      if (inspected.reloadRequired || Number(inspected.fileOperationUiSchemaVersion || 0) < 11 || !Array.isArray(inspected.visibleFolders)) {
+        stale.push(`${page.projectTitle || page.clientId || "unknown page"}: ${inspected.reason || "missing file-operation UI schema v11"}`);
       }
     } catch (error) {
       stale.push(`${page.projectTitle || page.clientId || "unknown page"}: ${error.message}`);
     }
   }
   if (stale.length === 0) {
-    pass(checks, "file_operation_ui_schema", "All connected pages report file-operation UI schema v10");
+    pass(checks, "file_operation_ui_schema", "All connected pages report file-operation UI schema v11");
   } else {
     const message = `Stale file-operation UI schema detected; reload the unpacked Chrome extension and refresh Overleaf tab(s): ${stale.join("; ")}`;
     if (options.allowOffline) warn(checks, "file_operation_ui_schema", message);

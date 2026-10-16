@@ -2,8 +2,8 @@
 
 (() => {
   const DEFAULT_SERVER_URL = "http://127.0.0.1:38475";
-  const BRIDGE_VERSION = "0.5.32";
-  const FILE_OPERATION_UI_SCHEMA_VERSION = 10;
+  const BRIDGE_VERSION = "0.5.33";
+  const FILE_OPERATION_UI_SCHEMA_VERSION = 11;
   const POLL_DELAY_MS = 1000;
   const REGISTER_DELAY_MS = 5000;
   const CLIENT_ID_KEY = "overleafCodexBridgeClientId";
@@ -1232,12 +1232,18 @@
 
   async function clickConfirmationButton(labels, scope = document) {
     const normalized = labels.map((label) => label.toLowerCase());
-    const button = Array.from(scope.querySelectorAll("button, [role='button']"))
-      .find((candidate) => {
+    const candidates = Array.from(scope.querySelectorAll("button, [role='button']"))
+      .map((candidate, index) => {
         if (!isElementVisible(candidate) || isDisabledControl(candidate)) return false;
         const label = cleanText([candidate.textContent, candidate.getAttribute("aria-label"), candidate.getAttribute("title")].filter(Boolean).join(" ")).toLowerCase();
-        return normalized.some((needle) => label.includes(needle.toLowerCase()));
-      });
+        const exact = normalized.some((needle) => label === needle);
+        const partial = normalized.some((needle) => label.includes(needle));
+        if (!partial) return null;
+        return { candidate, score: exact ? 100 : 10, index };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (b.score - a.score) || (a.index - b.index));
+    const button = candidates.length ? candidates[0].candidate : null;
     if (!button) throw new Error(`confirmation button not found: ${labels.join("/")}`);
     button.click();
     await sleep(500);

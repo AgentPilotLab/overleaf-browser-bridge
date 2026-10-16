@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.33 - 2026-10-16
+
+- Prefer exact dialog-action labels over partial matches so localized navigation controls such as `新建文件` cannot outrank the actual `创建` confirmation button.
+
 ## 0.5.32 - 2026-10-16
 
 - Update React-controlled Overleaf file-name inputs through the native value setter before dispatching input events.
