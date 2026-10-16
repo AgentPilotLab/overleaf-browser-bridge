@@ -111,7 +111,7 @@ async function main() {
       projectTitle: "Extension Origin Project",
       fileName: "main.tex",
       editorMode: "source",
-      contentScriptVersion: "0.5.29"
+      contentScriptVersion: "0.5.30"
     }
   });
   assert.strictEqual(extensionRegister.ok, true);
@@ -125,7 +125,7 @@ async function main() {
       projectTitle: "Regional Origin Project",
       fileName: "main.tex",
       editorMode: "source",
-      contentScriptVersion: "0.5.29"
+      contentScriptVersion: "0.5.30"
     }
   });
   assert.strictEqual(regionalOriginRegister.ok, true);
@@ -162,7 +162,7 @@ async function main() {
       projectTitle: "Lookalike Origin Project",
       fileName: "main.tex",
       editorMode: "source",
-      contentScriptVersion: "0.5.29"
+      contentScriptVersion: "0.5.30"
     },
     expectOk: false
   });
@@ -184,7 +184,7 @@ async function main() {
       projectTitle: "Extension Origin Project",
       fileName: "main.tex",
       editorMode: "source",
-      contentScriptVersion: "0.5.29"
+      contentScriptVersion: "0.5.30"
     }
   });
   assert.strictEqual(authenticatedExtensionRegister.ok, true);
@@ -476,7 +476,7 @@ async function main() {
   assert.strictEqual(postInstallSummary.expectedContentScriptVersion, JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8")).version);
   assert.ok(postInstallSummary.checks.some((check) => check.name === "content_script_version" && check.status === "pass"));
   assert.ok(postInstallSummary.checks.some((check) => check.name === "file_operation_ui_schema" && check.status === "pass"));
-  assert.ok(postInstallSummary.pages.every((page) => page.fileOperationUiSchemaVersion === 7));
+  assert.ok(postInstallSummary.pages.every((page) => page.fileOperationUiSchemaVersion === 8));
   assert.ok(postInstallSummary.pages.every((page) => !/project\/[A-Za-z0-9]+/.test(page.pageUrl)));
 
   const health = await bridge.callTool("health_check", {});
@@ -965,6 +965,22 @@ async function main() {
   assert.strictEqual(incompleteCompile.compileSummary.warnings, null);
   assert.strictEqual(incompleteCompile.compileSummary.pages, null);
   assert.match(incompleteCompile.visibleStatus, /Compile incomplete/);
+
+  client.compileResult = {
+    compileCompleted: true,
+    compileTimedOut: false,
+    compileEvidence: "pdf-output-refreshed",
+    visibleStatus: "Compile completed: PDF output refreshed; log counts unavailable",
+    logSnippet: ""
+  };
+  const refreshedPdfPromise = bridge.callTool("compile_and_read_log", { projectTitle: "Codex Free" });
+  await client.pollAndHandle();
+  const refreshedPdfCompile = await refreshedPdfPromise;
+  assert.strictEqual(refreshedPdfCompile.compileSummary.completed, true);
+  assert.strictEqual(refreshedPdfCompile.compileSummary.timedOut, false);
+  assert.strictEqual(refreshedPdfCompile.compileSummary.errors, null);
+  assert.strictEqual(refreshedPdfCompile.compileSummary.warnings, null);
+  assert.strictEqual(refreshedPdfCompile.compileSummary.evidence, "pdf-output-refreshed");
   client.compileResult = null;
 
   const exportFilePromise = bridge.callTool("export_current_file", {
@@ -1474,7 +1490,7 @@ async function main() {
 
   const mcpInit = await handleMcpRequest(bridge, { jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
   assert.strictEqual(mcpInit.result.serverInfo.name, "overleaf-browser-bridge");
-  assert.strictEqual(mcpInit.result.serverInfo.version, "0.5.29");
+  assert.strictEqual(mcpInit.result.serverInfo.version, "0.5.30");
   const mcpTools = await handleMcpRequest(bridge, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
   for (const toolName of PUBLIC_TOOLS) assert.ok(mcpTools.result.tools.some((tool) => tool.name === toolName));
 
@@ -1659,12 +1675,12 @@ class FakeOverleafClient {
     this.selection = "";
     this.compileResult = options.compileResult || null;
     this.compileDelayMs = Number(options.compileDelayMs || 0);
-    this.contentScriptVersion = options.contentScriptVersion || "0.5.29";
+    this.contentScriptVersion = options.contentScriptVersion || "0.5.30";
     this.supportsArtifactInventory = options.supportsArtifactInventory !== false;
     this.artifactBytes = null;
     this.supportsFileOperationInspector = options.supportsFileOperationInspector !== false;
     this.legacyFileOperationUiSchema = Boolean(options.legacyFileOperationUiSchema);
-    this.fileOperationUiSchemaVersion = options.fileOperationUiSchemaVersion || 7;
+    this.fileOperationUiSchemaVersion = options.fileOperationUiSchemaVersion || 8;
     this.supportsUploadWorkflowInspector = options.supportsUploadWorkflowInspector !== false;
     this.supportsDownloadWorkflowInspector = options.supportsDownloadWorkflowInspector !== false;
     this.supportsVisibleCommentsInspector = options.supportsVisibleCommentsInspector !== false;
@@ -2201,6 +2217,20 @@ async function validateContentScriptDomHelpers() {
   assert.strictEqual(rankedCreate[0].element, realNewFileButton);
   assert.ok(!rankedCreate.some((candidate) => candidate.element === bigContainer));
 
+  const localizedNewFileButton = new FakeElement("button", { text: "新建文件" });
+  const localizedNewFolderButton = new FakeElement("button", { text: "新建目录" });
+  const localizedUploadButton = new FakeElement("button", { text: "上传" });
+  const topFileMenuButton = new FakeElement("button", {
+    text: "文件",
+    attrs: { class: "toolbar-menu-bar-item" }
+  });
+  const pdfZoomOutButton = new FakeElement("button", { text: "remove | 缩小" });
+  assert.strictEqual(hooks.classifyFileOperationControl("新建文件", localizedNewFileButton), "create");
+  assert.strictEqual(hooks.classifyFileOperationControl("新建目录", localizedNewFolderButton), "create");
+  assert.strictEqual(hooks.classifyFileOperationControl("上传", localizedUploadButton), "upload");
+  assert.strictEqual(hooks.classifyFileOperationControl("文件", topFileMenuButton), "");
+  assert.strictEqual(hooks.classifyFileOperationControl("remove | 缩小", pdfZoomOutButton), "");
+
   const dialog = new FakeElement("div", { attrs: { role: "dialog" } });
   const fileNameInput = new FakeElement("input", {
     parent: dialog,
@@ -2487,6 +2517,33 @@ async function validateContentScriptDomHelpers() {
   const stateOnlyCompile = await stateOnlyPromise;
   assert.strictEqual(stateOnlyCompile.completed, true);
   assert.match(stateOnlyCompile.logSnippet, /Errors 0/);
+
+  const pdfLink = new FakeElement("a", {
+    attrs: { href: "/download/project/test/build/build-old/output/output.pdf" }
+  });
+  const pdfLabel = new FakeElement("a", {
+    text: "下载 PDF",
+    attrs: { href: "/download/project/test/build/build-old/output/output.pdf" }
+  });
+  const localizedRecompile = new FakeElement("button", { text: "重新编译" });
+  const outputHooks = loadContentScriptTestHooks({
+    querySelectorAll(selector) {
+      if (selector === "a[href]") return [pdfLink];
+      if (selector === '[role="status"], .log-entry, .pdf-viewer, button, a') return [pdfLabel];
+      return [localizedRecompile, pdfLabel];
+    }
+  });
+  const previousOutputSignature = outputHooks.getCompileOutputSignature();
+  const outputRefreshPromise = outputHooks.waitForCompileCompletion(
+    "下载 PDF",
+    localizedRecompile,
+    { timeoutMs: 200, pollMs: 5, settleMs: 10, previousOutputSignature }
+  );
+  setTimeout(() => pdfLink.setAttribute("href", "/download/project/test/build/build-new/output/output.pdf"), 10);
+  const outputRefreshCompile = await outputRefreshPromise;
+  assert.strictEqual(outputRefreshCompile.completed, true);
+  assert.strictEqual(outputRefreshCompile.evidence, "pdf-output-refreshed");
+  assert.strictEqual(outputRefreshCompile.logSnippet, "");
 }
 
 function loadContentScriptTestHooks(documentOverrides = {}) {

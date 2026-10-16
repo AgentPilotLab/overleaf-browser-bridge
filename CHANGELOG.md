@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.30 - 2026-10-16
+
+- Recognize localized Overleaf file-tree actions, including Chinese `新建文件`, without confusing editor menus or PDF zoom controls for file operations.
+- Treat a refreshed Overleaf PDF build URL as successful compile completion when the log panel remains closed, while leaving unavailable error and warning counts unknown.
+- Require file-operation UI schema 8 so stale 0.5.29 content scripts are detected after extension reloads.
+
 ## 0.5.29 - 2026-08-13
 
 - Added localized compile-button detection for English and Chinese Overleaf interfaces.

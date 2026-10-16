@@ -1888,7 +1888,7 @@ async function inspectFileOperationUi(state, args) {
 function normalizeFileOperationUiInspection(ui, client, args) {
   const result = ui && typeof ui === "object" ? { ...ui } : {};
   const controls = Array.isArray(result.controls) ? result.controls : [];
-  const hasSchemaMarker = Number(result.fileOperationUiSchemaVersion || 0) >= 7;
+  const hasSchemaMarker = Number(result.fileOperationUiSchemaVersion || 0) >= 8;
   const hasVisibleFolders = Array.isArray(result.visibleFolders);
   const hasControlScores = controls.every((control) => control && typeof control.score === "number");
   const hasCapabilities = result.capabilities && result.capabilities.rankedOperationControls === true && result.capabilities.visibleFolders === true;
@@ -3397,6 +3397,19 @@ function summarizeCompileLog(result) {
     };
   }
   const text = String(result.logSnippet || result.visibleStatus || "");
+  const hasExplicitCounts = /\bErrors?\s*:?\s*\d+\b|\bWarnings?\s*:?\s*\d+\b/i.test(String(result.logSnippet || ""));
+  if (result.compileEvidence === "pdf-output-refreshed" && !hasExplicitCounts) {
+    return {
+      errors: null,
+      warnings: null,
+      pages: null,
+      completed: true,
+      timedOut: false,
+      evidence: "pdf-output-refreshed",
+      statusText: String(result.visibleStatus || "Compile completed: PDF output refreshed; log counts unavailable"),
+      logSnippet: ""
+    };
+  }
   const parsed = parseCompileStatusText(text);
   const errors = parsed.errors === null ? 0 : parsed.errors;
   const warnings = parsed.warnings === null ? 0 : parsed.warnings;
@@ -3714,7 +3727,7 @@ async function handleMcpRequest(bridge, request) {
         result: {
           protocolVersion: "2024-11-05",
           capabilities: { tools: {} },
-          serverInfo: { name: "overleaf-browser-bridge", version: "0.5.29" }
+          serverInfo: { name: "overleaf-browser-bridge", version: "0.5.30" }
         }
       };
     }

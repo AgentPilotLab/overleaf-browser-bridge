@@ -2,8 +2,8 @@
 
 (() => {
   const DEFAULT_SERVER_URL = "http://127.0.0.1:38475";
-  const BRIDGE_VERSION = "0.5.29";
-  const FILE_OPERATION_UI_SCHEMA_VERSION = 7;
+  const BRIDGE_VERSION = "0.5.30";
+  const FILE_OPERATION_UI_SCHEMA_VERSION = 8;
   const POLL_DELAY_MS = 1000;
   const REGISTER_DELAY_MS = 5000;
   const CLIENT_ID_KEY = "overleafCodexBridgeClientId";
@@ -939,16 +939,18 @@
   }
 
   function classifyFileOperationControl(label, element) {
-    const value = `${label || ""} ${element.getAttribute("class") || ""}`.toLowerCase();
+    const labelValue = String(label || "").toLowerCase();
+    const classValue = String(element.getAttribute("class") || "").toLowerCase();
+    const value = `${labelValue} ${classValue}`;
     const inputType = String(element.getAttribute("type") || "").toLowerCase();
     if (inputType === "file") return "upload";
     if (!isActionableFileOperationElement(element)) return "";
     if (looksLikeMixedOperationContainer(label)) return "";
-    if (/\b(new|add|create)\b.*\b(file|folder|project file)\b|new file|new folder|add file|add folder|create file/.test(value)) return "create";
-    if (/\b(rename|move)\b|rename file|move file/.test(value)) return "rename";
-    if (/\b(delete|remove|trash)\b|delete file|remove file/.test(value)) return "delete";
-    if (/\b(upload|import)\b.*\b(file|image|figure|project)\b|upload file|upload image/.test(value)) return "upload";
-    if (/more_vert|more actions|file actions|file menu|menu/.test(value)) return "file-menu";
+    if (/\b(new|add|create)\b.*\b(file|folder|project file)\b|new file|new folder|add file|add folder|create file|新建文件|新建目录|新建文件夹/.test(value)) return "create";
+    if (/\b(rename|move)\b|rename file|move file|重命名|移动文件/.test(value)) return "rename";
+    if (!/\bzoom out\b|缩小/.test(labelValue) && (/\b(delete|remove|trash)\b|delete file|remove file|删除/.test(value))) return "delete";
+    if (/\b(upload|import)\b.*\b(file|image|figure|project)\b|upload file|upload image|上传/.test(value)) return "upload";
+    if (/more_vert|more actions|file actions|file menu|操作菜单/.test(labelValue) || /more_vert/.test(classValue)) return "file-menu";
     return "";
   }
 
@@ -1353,8 +1355,12 @@
     if (!button) throw new Error("Recompile button not found");
     const previousLogSnippet = getCompileStatus();
     const previousActivitySignature = getCompileActivitySignature(button);
+    const previousOutputSignature = getCompileOutputSignature();
     button.click();
-    const compile = await waitForCompileCompletion(previousLogSnippet, button, { previousActivitySignature });
+    const compile = await waitForCompileCompletion(previousLogSnippet, button, {
+      previousActivitySignature,
+      previousOutputSignature
+    });
     if (!compile.completed) {
       return {
         ...getProjectMeta(),
@@ -1365,11 +1371,15 @@
       };
     }
     const logSnippet = compile.logSnippet;
+    const visibleStatus = logSnippet
+      ? summarizeVisibleCompileStatus(logSnippet)
+      : "Compile completed: PDF output refreshed; log counts unavailable";
     return {
       ...getProjectMeta(),
       compileCompleted: true,
       compileTimedOut: false,
-      visibleStatus: summarizeVisibleCompileStatus(logSnippet),
+      compileEvidence: compile.evidence || "visible-log",
+      visibleStatus,
       logSnippet
     };
   }
@@ -1385,11 +1395,17 @@
     let changedAt = started;
     let lastLogSnippet = previousLogSnippet;
     const previousActivitySignature = String(options.previousActivitySignature || "");
+    const previousOutputSignature = String(options.previousOutputSignature || "");
+    let outputChangedAt = 0;
     while (Date.now() - started < timeoutMs) {
       const currentButton = findCompileButton() || button;
       const inProgress = isCompileInProgress(currentButton);
       const activitySignature = getCompileActivitySignature(currentButton);
+      const outputSignature = getCompileOutputSignature();
       const logSnippet = getCompileStatus();
+      if (outputSignature && previousOutputSignature && outputSignature !== previousOutputSignature && !outputChangedAt) {
+        outputChangedAt = Date.now();
+      }
       if (activitySignature && previousActivitySignature && activitySignature !== previousActivitySignature) {
         sawActivity = true;
       }
@@ -1411,8 +1427,16 @@
         && !inProgress
         && activitySignature === previousActivitySignature
         && Date.now() - changedAt >= settleMs;
+      if (outputChangedAt && Date.now() - outputChangedAt >= settleMs) {
+        return {
+          completed: true,
+          timedOut: false,
+          evidence: "pdf-output-refreshed",
+          logSnippet: hasCompileResultEvidence(logSnippet) ? logSnippet : ""
+        };
+      }
       if (hasCompileResultEvidence(logSnippet) && (settledAfterFinish || changedAndSettled || activitySettled)) {
-        return { completed: true, timedOut: false, logSnippet };
+        return { completed: true, timedOut: false, evidence: "visible-log", logSnippet };
       }
       await sleep(pollMs);
     }
@@ -1450,6 +1474,12 @@
 
   function hasCompileResultEvidence(value) {
     return /\b(?:errors?|warnings?)\s*:?\s*\d+\b|\boutput written on\b|\b\d+\s+pages?\b|\ball logs?\s*\d+\b/i.test(String(value || ""));
+  }
+
+  function getCompileOutputSignature() {
+    const link = Array.from(document.querySelectorAll("a[href]"))
+      .find((element) => /\/download\/project\/[^/]+\/build\/[^/]+\/output\/output\.pdf/i.test(element.getAttribute("href") || ""));
+    return link ? String(link.getAttribute("href") || "") : "";
   }
 
   function getCompileStatus() {
@@ -1933,6 +1963,7 @@
       openFile,
       waitForCompileCompletion,
       getCompileActivitySignature,
+      getCompileOutputSignature,
       findCompileButton
     };
   }

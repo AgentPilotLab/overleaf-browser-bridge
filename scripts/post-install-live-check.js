@@ -116,7 +116,7 @@ async function checkFileOperationUiSchema(info, pages, pageSummaries, checks, op
         summary.fileOperationUiReloadRequired = Boolean(inspected.reloadRequired);
         summary.fileOperationUiStaleSchema = Boolean(inspected.staleSchema);
       }
-      if (inspected.reloadRequired || Number(inspected.fileOperationUiSchemaVersion || 0) < 7 || !Array.isArray(inspected.visibleFolders)) {
+      if (inspected.reloadRequired || Number(inspected.fileOperationUiSchemaVersion || 0) < 8 || !Array.isArray(inspected.visibleFolders)) {
         stale.push(`${page.projectTitle || page.clientId || "unknown page"}: ${inspected.reason || "missing file-operation UI schema v7"}`);
       }
     } catch (error) {
