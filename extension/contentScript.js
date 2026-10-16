@@ -179,7 +179,7 @@
 
   async function openFile(fileName) {
     if (!fileName) throw new Error("open_file received empty fileName");
-    const target = findFileTreeItem(fileName);
+    const target = await revealFileTreeItem(fileName);
     if (!target) throw new Error(`file not visible in Overleaf tree: ${fileName}`);
     target.scrollIntoView({ block: "center" });
     target.click();
@@ -1060,6 +1060,19 @@
       await sleep(500);
       return;
     }
+    if (operation === "create") {
+      const launcher = findVisibleCreateMenuLauncher();
+      if (launcher) {
+        launcher.click();
+        await sleep(500);
+        const afterMenu = findVisibleOperationControl("create");
+        if (afterMenu) {
+          afterMenu.click();
+          await sleep(500);
+          return;
+        }
+      }
+    }
     if (fileName) {
       const item = findFileTreeItem(fileName);
       if (item) {
@@ -1079,6 +1092,23 @@
       }
     }
     throw new Error(`visible ${operation} file control not found`);
+  }
+
+  function findVisibleCreateMenuLauncher() {
+    const candidates = getVisibleOperationControlCandidates("file-menu")
+      .filter(({ element }) => !element.closest("[role='treeitem']") && !element.closest("li"))
+      .map((candidate) => {
+        const label = candidate.label.toLowerCase();
+        const fileTreeContext = candidate.element.closest("[data-testid*='file'], [class*='file-tree'], [aria-label*='file']");
+        return {
+          ...candidate,
+          launcherScore: candidate.score
+            + (fileTreeContext ? 80 : 0)
+            + (/\b(file|project|add|new)\b|note_add/.test(label) ? 60 : 0)
+        };
+      })
+      .sort((a, b) => (b.launcherScore - a.launcherScore) || (a.index - b.index));
+    return candidates.length ? candidates[0].element : null;
   }
 
   function findVisibleOperationControl(operation) {
@@ -1321,14 +1351,105 @@
   async function compileProject() {
     const button = findCompileButton();
     if (!button) throw new Error("Recompile button not found");
+    const previousLogSnippet = getCompileStatus();
+    const previousActivitySignature = getCompileActivitySignature(button);
     button.click();
-    await sleep(3000);
-    const logSnippet = getCompileStatus();
+    const compile = await waitForCompileCompletion(previousLogSnippet, button, { previousActivitySignature });
+    if (!compile.completed) {
+      return {
+        ...getProjectMeta(),
+        compileCompleted: false,
+        compileTimedOut: true,
+        visibleStatus: "Compile incomplete: timed out waiting for fresh Overleaf compile results",
+        logSnippet: ""
+      };
+    }
+    const logSnippet = compile.logSnippet;
     return {
       ...getProjectMeta(),
+      compileCompleted: true,
+      compileTimedOut: false,
       visibleStatus: summarizeVisibleCompileStatus(logSnippet),
       logSnippet
     };
+  }
+
+  async function waitForCompileCompletion(previousLogSnippet, button, options = {}) {
+    const timeoutMs = Number(options.timeoutMs || 25000);
+    const pollMs = Number(options.pollMs || 250);
+    const settleMs = Number(options.settleMs || 1000);
+    const started = Date.now();
+    let sawInProgress = false;
+    let sawActivity = false;
+    let finishedAt = 0;
+    let changedAt = started;
+    let lastLogSnippet = previousLogSnippet;
+    const previousActivitySignature = String(options.previousActivitySignature || "");
+    while (Date.now() - started < timeoutMs) {
+      const currentButton = findCompileButton() || button;
+      const inProgress = isCompileInProgress(currentButton);
+      const activitySignature = getCompileActivitySignature(currentButton);
+      const logSnippet = getCompileStatus();
+      if (activitySignature && previousActivitySignature && activitySignature !== previousActivitySignature) {
+        sawActivity = true;
+      }
+      if (logSnippet !== lastLogSnippet || (sawActivity && activitySignature !== previousActivitySignature)) {
+        lastLogSnippet = logSnippet;
+        changedAt = Date.now();
+      }
+      if (inProgress) {
+        sawInProgress = true;
+        finishedAt = 0;
+      } else if (sawInProgress && !finishedAt) {
+        finishedAt = Date.now();
+      }
+      const settledAfterFinish = finishedAt && Date.now() - Math.max(finishedAt, changedAt) >= settleMs;
+      const changedAndSettled = !sawInProgress
+        && logSnippet !== previousLogSnippet
+        && Date.now() - changedAt >= settleMs;
+      const activitySettled = sawActivity
+        && !inProgress
+        && activitySignature === previousActivitySignature
+        && Date.now() - changedAt >= settleMs;
+      if (hasCompileResultEvidence(logSnippet) && (settledAfterFinish || changedAndSettled || activitySettled)) {
+        return { completed: true, timedOut: false, logSnippet };
+      }
+      await sleep(pollMs);
+    }
+    return { completed: false, timedOut: true, logSnippet: "" };
+  }
+
+  function isCompileInProgress(button) {
+    const candidates = [
+      button,
+      ...Array.from(document.querySelectorAll('button, [role="status"], [aria-live="polite"], [aria-live="assertive"]'))
+    ].filter(Boolean);
+    return candidates.some((element) => {
+      if (element.disabled || element.getAttribute("aria-busy") === "true") return true;
+      const label = cleanText([
+        element.textContent,
+        element.getAttribute("aria-label"),
+        element.getAttribute("title")
+      ].filter(Boolean).join(" "));
+      return /\b(compiling|processing compile|stop compile|cancel compile)\b|\u6b63\u5728\u7f16\u8bd1|\u7f16\u8bd1\u4e2d/i.test(label);
+    });
+  }
+
+  function getCompileActivitySignature(button) {
+    if (!button) return "";
+    return cleanText([
+      button.textContent,
+      button.getAttribute("aria-label"),
+      button.getAttribute("title"),
+      button.getAttribute("aria-busy"),
+      button.getAttribute("data-state"),
+      button.getAttribute("class"),
+      button.disabled ? "disabled" : "enabled"
+    ].filter(Boolean).join(" | "));
+  }
+
+  function hasCompileResultEvidence(value) {
+    return /\b(?:errors?|warnings?)\s*:?\s*\d+\b|\boutput written on\b|\b\d+\s+pages?\b|\ball logs?\s*\d+\b/i.test(String(value || ""));
   }
 
   function getCompileStatus() {
@@ -1605,8 +1726,12 @@
     const parts = splitCreatePath(fileName);
     while (Date.now() - started < timeoutMs) {
       if (parts.parentPath) {
-        const folder = findVisibleFolderTreeItem(parts.parentPath);
-        if (folder) await expandFolderTreeItem(folder);
+        const segments = parts.parentPath.split("/").filter(Boolean);
+        for (let index = 0; index < segments.length; index += 1) {
+          const folder = findVisibleFolderTreeItem(segments.slice(0, index + 1).join("/"));
+          if (!folder) break;
+          await expandFolderTreeItem(folder);
+        }
       }
       const item = findFileTreeItem(fileName);
       if (item) {
@@ -1803,6 +1928,11 @@
       fileNameMatches,
       isFileLikeName,
       splitCreatePath,
+      clickOperationControl,
+      findVisibleCreateMenuLauncher,
+      openFile,
+      waitForCompileCompletion,
+      getCompileActivitySignature,
       findCompileButton
     };
   }
@@ -1820,4 +1950,3 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 })();
-

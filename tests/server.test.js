@@ -934,14 +934,38 @@ async function main() {
   assert.ok(fs.existsSync(path.join(mirrorPullExecute.newMirrorRoot, "main.tex")));
   assert.ok(fs.readFileSync(path.join(mirrorPullExecute.newMirrorRoot, "main.tex"), "utf8").includes("mirror diff"));
 
+  bridge.state.commandTimeoutMs = 10;
+  bridge.state.compileCommandTimeoutMs = 100;
+  client.compileDelayMs = 30;
   const compilePromise = bridge.callTool("compile_and_read_log", { projectTitle: "Codex Free" });
   await client.pollAndHandle();
   const compile = await compilePromise;
+  client.compileDelayMs = 0;
+  bridge.state.commandTimeoutMs = 5000;
+  bridge.state.compileCommandTimeoutMs = 90000;
   assert.strictEqual(compile.compileSummary.errors, 0);
   assert.strictEqual(compile.compileSummary.warnings, 0);
   assert.strictEqual(compile.compileSummary.pages, 11);
+  assert.strictEqual(compile.compileSummary.completed, true);
   assert.strictEqual(compile.compileSummary.statusText, "Errors 0 | Warnings 0 | Pages 11");
   assert.strictEqual(compile.visibleStatus, "Errors 0 | Warnings 0 | Pages 11");
+
+  client.compileResult = {
+    compileCompleted: false,
+    compileTimedOut: true,
+    visibleStatus: "Compile incomplete: timed out waiting for fresh Overleaf compile results",
+    logSnippet: ""
+  };
+  const incompleteCompilePromise = bridge.callTool("compile_and_read_log", { projectTitle: "Codex Free" });
+  await client.pollAndHandle();
+  const incompleteCompile = await incompleteCompilePromise;
+  assert.strictEqual(incompleteCompile.compileSummary.completed, false);
+  assert.strictEqual(incompleteCompile.compileSummary.timedOut, true);
+  assert.strictEqual(incompleteCompile.compileSummary.errors, null);
+  assert.strictEqual(incompleteCompile.compileSummary.warnings, null);
+  assert.strictEqual(incompleteCompile.compileSummary.pages, null);
+  assert.match(incompleteCompile.visibleStatus, /Compile incomplete/);
+  client.compileResult = null;
 
   const exportFilePromise = bridge.callTool("export_current_file", {
     projectTitle: "Codex Free",
@@ -956,9 +980,15 @@ async function main() {
   assert.ok(fs.existsSync(exportedFile.manifestPath));
   assert.ok(fs.readFileSync(exportedFile.exportPath, "utf8").includes("mirror diff"));
 
+  bridge.state.commandTimeoutMs = 10;
+  bridge.state.compileCommandTimeoutMs = 100;
+  client.compileDelayMs = 30;
   const exportLogPromise = bridge.callTool("export_compile_log", { projectTitle: "Codex Free" });
   await client.pollAndHandle();
   const exportedLog = await exportLogPromise;
+  client.compileDelayMs = 0;
+  bridge.state.commandTimeoutMs = 5000;
+  bridge.state.compileCommandTimeoutMs = 90000;
   assert.strictEqual(exportedLog.ok, true);
   assert.ok(fs.existsSync(exportedLog.exportPath));
   assert.ok(fs.readFileSync(exportedLog.exportPath, "utf8").includes("Recompile complete"));
@@ -996,6 +1026,25 @@ async function main() {
   assert.strictEqual(visibleArtifactManifest.byteLength, visibleArtifact.byteLength);
   assert.ok(!/abc123|test-token|overleaf_session/i.test(JSON.stringify(visibleArtifactManifest)));
   assert.ok(!JSON.stringify(visibleArtifact).includes("base64"));
+
+  // A supported artifact whose base64 exceeds the old 5,000,000-character HTTP limit.
+  const largeArtifactBytes = Buffer.alloc(4 * 1024 * 1024, 0x61);
+  largeArtifactBytes.write("%PDF-1.7\n", 0, "utf8");
+  assert.ok(largeArtifactBytes.toString("base64").length > 5_000_000);
+  client.artifactBytes = largeArtifactBytes;
+  const largeArtifactPromise = bridge.callTool("export_visible_artifact", {
+    projectTitle: "Codex Free",
+    artifactType: "pdf"
+  });
+  await client.pollAndHandle();
+  const largeArtifact = await largeArtifactPromise;
+  assert.strictEqual(largeArtifact.ok, true);
+  assert.strictEqual(largeArtifact.byteLength, largeArtifactBytes.length);
+  assert.deepStrictEqual(fs.readFileSync(largeArtifact.exportPath), largeArtifactBytes);
+  const largeArtifactManifest = JSON.parse(fs.readFileSync(largeArtifact.manifestPath, "utf8"));
+  assert.strictEqual(largeArtifactManifest.byteLength, largeArtifactBytes.length);
+  assert.strictEqual(largeArtifactManifest.maxBytes, 10 * 1024 * 1024);
+  client.artifactBytes = null;
 
   const fileUiPromise = bridge.callTool("inspect_file_operation_ui", { projectTitle: "Codex Free" });
   await client.pollAndHandle();
@@ -1430,7 +1479,7 @@ async function main() {
   for (const toolName of PUBLIC_TOOLS) assert.ok(mcpTools.result.tools.some((tool) => tool.name === toolName));
 
   validateStdioParser();
-  validateContentScriptDomHelpers();
+  await validateContentScriptDomHelpers();
   await validateBackgroundBridgeProxy();
   validateManifest();
   await bridge.close();
@@ -1608,8 +1657,11 @@ class FakeOverleafClient {
       "figures/overview.png": "fake image bytes"
     };
     this.selection = "";
+    this.compileResult = options.compileResult || null;
+    this.compileDelayMs = Number(options.compileDelayMs || 0);
     this.contentScriptVersion = options.contentScriptVersion || "0.5.29";
     this.supportsArtifactInventory = options.supportsArtifactInventory !== false;
+    this.artifactBytes = null;
     this.supportsFileOperationInspector = options.supportsFileOperationInspector !== false;
     this.legacyFileOperationUiSchema = Boolean(options.legacyFileOperationUiSchema);
     this.fileOperationUiSchemaVersion = options.fileOperationUiSchemaVersion || 7;
@@ -1788,10 +1840,15 @@ class FakeOverleafClient {
         replyTextLength: action === "reply" ? String(command.payload.replyText || "").length : 0
       };
     } else if (command.type === "compile_project") {
+      if (this.compileDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, this.compileDelayMs));
       payload = {
         ...this.meta(),
-        visibleStatus: "Errors 1 | Warnings 1",
-        logSnippet: "Recompile complete. All logs7 | Errors0 | Warnings0 | Output written on output.pdf (11 pages, 218216 bytes)"
+        ...(this.compileResult || {
+          compileCompleted: true,
+          compileTimedOut: false,
+          visibleStatus: "Errors 1 | Warnings 1",
+          logSnippet: "Recompile complete. All logs7 | Errors0 | Warnings0 | Output written on output.pdf (11 pages, 218216 bytes)"
+        })
       };
     } else if (command.type === "list_visible_artifacts") {
       if (!this.supportsArtifactInventory) {
@@ -1845,7 +1902,7 @@ class FakeOverleafClient {
         });
         return;
       }
-      const artifactBytes = Buffer.from("%PDF-1.7\n% fake overleaf pdf\n", "utf8");
+      const artifactBytes = this.artifactBytes || Buffer.from("%PDF-1.7\n% fake overleaf pdf\n", "utf8");
       payload = {
         ...this.meta(),
         ok: true,
@@ -2125,7 +2182,7 @@ async function validateBackgroundBridgeProxy() {
   assert.strictEqual(requests[0].options.headers.Authorization, "Bearer test-token");
 }
 
-function validateContentScriptDomHelpers() {
+async function validateContentScriptDomHelpers() {
   const hooks = loadContentScriptTestHooks();
   const bigContainer = new FakeElement("div", {
     text: "keyboard_arrow_downFile treenote_addNew filecreate_new_folderNew folderuploadUploaddeleteDelete",
@@ -2225,6 +2282,85 @@ function validateContentScriptDomHelpers() {
   assert.strictEqual(hooks.fileNameMatches("01_introduction.tex", "sections/01_introduction.tex"), true);
   assert.strictEqual(hooks.fileNameMatches("sections/01_introduction.tex", "01_introduction.tex"), true);
 
+  const fileTreeToolbar = new FakeElement("div", {
+    attrs: { class: "file-tree-toolbar", "aria-label": "File tree toolbar" }
+  });
+  let createMenuItem = null;
+  const fileMenuButton = new FakeElement("button", {
+    parent: fileTreeToolbar,
+    attrs: { "aria-label": "File menu", "data-testid": "file-menu" },
+    onClick: () => {
+      createMenuItem = new FakeElement("button", {
+        text: "New file",
+        attrs: { role: "menuitem", "aria-label": "New file" }
+      });
+    }
+  });
+  const existingFileRow = new FakeElement("li", {
+    attrs: { role: "treeitem", "aria-label": "main.tex" }
+  });
+  let rowMenuClicked = false;
+  const rowMenuButton = new FakeElement("button", {
+    parent: existingFileRow,
+    attrs: { "aria-label": "File menu" },
+    onClick: () => { rowMenuClicked = true; }
+  });
+  const menuHooks = loadContentScriptTestHooks({
+    querySelectorAll() {
+      return [rowMenuButton, fileMenuButton, createMenuItem].filter(Boolean);
+    }
+  });
+  let newFileClicked = false;
+  fileMenuButton.onClick = () => {
+    createMenuItem = new FakeElement("button", {
+      text: "New file",
+      attrs: { role: "menuitem", "aria-label": "New file" },
+      onClick: () => { newFileClicked = true; }
+    });
+  };
+  await menuHooks.clickOperationControl("create", "");
+  assert.strictEqual(rowMenuClicked, false);
+  assert.strictEqual(newFileClicked, true);
+
+  const collapsedRoot = new FakeElement("ul", {
+    attrs: { role: "tree", "data-testid": "file-tree-list-root", class: "file-tree-list" }
+  });
+  const collapsedFolder = new FakeElement("li", {
+    parent: collapsedRoot,
+    text: "chevron_rightsections",
+    attrs: { role: "treeitem", "aria-label": "sections", "aria-expanded": "false" }
+  });
+  const folderToggle = new FakeElement("button", {
+    parent: collapsedFolder,
+    attrs: { "aria-label": "Expand folder" }
+  });
+  let selectedNestedFile = null;
+  folderToggle.onClick = () => {
+    collapsedFolder.setAttribute("aria-expanded", "true");
+    const nestedTree = new FakeElement("ul", {
+      parent: collapsedRoot,
+      attrs: { role: "tree", class: "file-tree-folder-list" }
+    });
+    selectedNestedFile = new FakeElement("li", {
+      parent: nestedTree,
+      text: "description04_experiments.tex",
+      attrs: { role: "treeitem", "aria-label": "04_experiments.tex" }
+    });
+    selectedNestedFile.onClick = () => selectedNestedFile.setAttribute("aria-selected", "true");
+  };
+  const nestedHooks = loadContentScriptTestHooks({
+    querySelector(selector) {
+      if (selector === '[role="treeitem"][aria-selected="true"]') return selectedNestedFile;
+      return null;
+    },
+    querySelectorAll() {
+      return [collapsedRoot];
+    }
+  });
+  const openedNested = await nestedHooks.openFile("sections/04_experiments.tex");
+  assert.strictEqual(collapsedFolder.getAttribute("aria-expanded"), "true");
+  assert.strictEqual(openedNested.fileName, "04_experiments.tex");
+
   const fileTreeRoot = new FakeElement("div", {
     text: "File tree New file notes sections main.tex README elsarticle.dtx",
     attrs: { "aria-label": "File tree" }
@@ -2280,9 +2416,80 @@ function validateContentScriptDomHelpers() {
     localizedCompileButton
   );
   assert.strictEqual(hooks.findCompileButton([englishCompileButton]), englishCompileButton);
+
+  const compileStatus = new FakeElement("div", {
+    text: "Errors 0 | Warnings 0 | Output written on output.pdf (11 pages, 100 bytes)",
+    attrs: { role: "status" }
+  });
+  const compilingButton = new FakeElement("button", { text: "Compiling" });
+  const compileHooks = loadContentScriptTestHooks({
+    querySelectorAll(selector) {
+      if (selector === '[role="status"], .log-entry, .pdf-viewer, button, a') return [compileStatus];
+      return [compilingButton, compileStatus];
+    }
+  });
+  const freshCompilePromise = compileHooks.waitForCompileCompletion(
+    compileStatus.textContent,
+    compilingButton,
+    { timeoutMs: 200, pollMs: 5, settleMs: 10 }
+  );
+  setTimeout(() => {
+    compilingButton.textContent = "Recompile";
+    compileStatus.textContent = "Errors 0 | Warnings 10 | Output written on output.pdf (32 pages, 200 bytes)";
+  }, 15);
+  const freshCompile = await freshCompilePromise;
+  assert.strictEqual(freshCompile.completed, true);
+  assert.match(freshCompile.logSnippet, /Warnings 10/);
+  assert.match(freshCompile.logSnippet, /32 pages/);
+
+  const staleStatus = new FakeElement("div", {
+    text: "Errors 0 | Warnings 0 | Output written on output.pdf (11 pages, 100 bytes)",
+    attrs: { role: "status" }
+  });
+  const idleButton = new FakeElement("button", { text: "Recompile" });
+  const staleHooks = loadContentScriptTestHooks({
+    querySelectorAll(selector) {
+      if (selector === '[role="status"], .log-entry, .pdf-viewer, button, a') return [staleStatus];
+      return [idleButton, staleStatus];
+    }
+  });
+  const staleCompile = await staleHooks.waitForCompileCompletion(
+    staleStatus.textContent,
+    idleButton,
+    { timeoutMs: 30, pollMs: 5, settleMs: 10 }
+  );
+  assert.strictEqual(staleCompile.completed, false);
+  assert.strictEqual(staleCompile.timedOut, true);
+  assert.strictEqual(staleCompile.logSnippet, "");
+
+  const stateOnlyStatus = new FakeElement("div", {
+    text: "Errors 0 | Warnings 0 | Output written on output.pdf (11 pages, 100 bytes)",
+    attrs: { role: "status" }
+  });
+  const stateOnlyButton = new FakeElement("button", {
+    text: "Recompile",
+    attrs: { "aria-label": "Recompile", "data-state": "idle" }
+  });
+  const stateOnlyHooks = loadContentScriptTestHooks({
+    querySelectorAll(selector) {
+      if (selector === '[role="status"], .log-entry, .pdf-viewer, button, a') return [stateOnlyStatus];
+      return [stateOnlyButton, stateOnlyStatus];
+    }
+  });
+  const previousActivitySignature = stateOnlyHooks.getCompileActivitySignature(stateOnlyButton);
+  const stateOnlyPromise = stateOnlyHooks.waitForCompileCompletion(
+    stateOnlyStatus.textContent,
+    stateOnlyButton,
+    { timeoutMs: 200, pollMs: 5, settleMs: 10, previousActivitySignature }
+  );
+  setTimeout(() => stateOnlyButton.setAttribute("data-state", "running"), 10);
+  setTimeout(() => stateOnlyButton.setAttribute("data-state", "idle"), 30);
+  const stateOnlyCompile = await stateOnlyPromise;
+  assert.strictEqual(stateOnlyCompile.completed, true);
+  assert.match(stateOnlyCompile.logSnippet, /Errors 0/);
 }
 
-function loadContentScriptTestHooks() {
+function loadContentScriptTestHooks(documentOverrides = {}) {
   const source = fs.readFileSync(path.resolve(__dirname, "../extension/contentScript.js"), "utf8");
   const sandbox = {
     console,
@@ -2292,9 +2499,11 @@ function loadContentScriptTestHooks() {
       pathname: "/project/test"
     },
     document: {
+      title: "",
       documentElement: { dataset: {} },
       querySelector: () => null,
-      querySelectorAll: () => []
+      querySelectorAll: () => [],
+      ...documentOverrides
     },
     window: {
       __OVERLEAF_BRIDGE_ENABLE_TEST_HOOKS__: true,
@@ -2351,6 +2560,7 @@ class FakeElement {
     this.children = [];
     this.disabled = Boolean(options.disabled);
     this.visible = options.visible !== false;
+    this.onClick = options.onClick || null;
     this.attrs = new Map(Object.entries(options.attrs || {}).map(([key, value]) => [key.toLowerCase(), String(value)]));
     this.className = this.attrs.get("class") || "";
     this.classList = {
@@ -2361,6 +2571,10 @@ class FakeElement {
 
   getAttribute(name) {
     return this.attrs.get(String(name || "").toLowerCase()) || "";
+  }
+
+  setAttribute(name, value) {
+    this.attrs.set(String(name || "").toLowerCase(), String(value));
   }
 
   getBoundingClientRect() {
@@ -2388,6 +2602,11 @@ class FakeElement {
       if (value === "[class*='dialog']") return /dialog/i.test(className);
       if (value === "[class*='popover']") return /popover/i.test(className);
       if (value === ".cm-editor") return className.split(/\s+/).includes("cm-editor");
+      if (value === "[role='treeitem']") return role === "treeitem";
+      if (value === "li") return String(this.tagName || "").toLowerCase() === "li";
+      if (value === "[data-testid*='file']") return /file/i.test(this.getAttribute("data-testid"));
+      if (value === "[class*='file-tree']") return /file-tree/i.test(className);
+      if (value === "[aria-label*='file']") return /file/i.test(this.getAttribute("aria-label"));
       return false;
     });
   }
@@ -2415,7 +2634,9 @@ class FakeElement {
   }
 
   scrollIntoView() {}
-  click() {}
+  click() {
+    if (this.onClick) this.onClick();
+  }
   focus() {}
   dispatchEvent() {}
 }

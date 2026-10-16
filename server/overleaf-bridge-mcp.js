@@ -12,7 +12,11 @@ const DEFAULT_ALIAS_FILE = path.join(RUNTIME_DIR, "project-aliases.json");
 const DEFAULT_SNAPSHOT_DIR = path.join(osHomeDir(), ".codex", "overleaf-bridge", "projects");
 const DEFAULT_PORT = 38475;
 const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_COMPILE_TIMEOUT_MS = 90000;
 const CLIENT_STALE_MS = 90_000;
+const MAX_ARTIFACT_BYTES = 25 * 1024 * 1024;
+// Base64 for the largest supported artifact, plus its JSON envelope.
+const MAX_BRIDGE_RESULT_CHARS = 4 * Math.ceil(MAX_ARTIFACT_BYTES / 3) + 64 * 1024;
 
 const TOOL_DEFINITIONS = [
   {
@@ -645,6 +649,7 @@ function createBridgeServer(options = {}) {
   const snapshotDir = path.resolve(options.snapshotDir || process.env.OVERLEAF_BRIDGE_SNAPSHOT_DIR || DEFAULT_SNAPSHOT_DIR);
   const aliasFile = path.resolve(options.aliasFile || process.env.OVERLEAF_BRIDGE_ALIAS_FILE || DEFAULT_ALIAS_FILE);
   const commandTimeoutMs = Number(options.commandTimeoutMs || DEFAULT_TIMEOUT_MS);
+  const compileCommandTimeoutMs = Number(options.compileCommandTimeoutMs || Math.max(commandTimeoutMs, DEFAULT_COMPILE_TIMEOUT_MS));
 
   const state = {
     port,
@@ -652,6 +657,7 @@ function createBridgeServer(options = {}) {
     snapshotDir,
     aliasFile,
     commandTimeoutMs,
+    compileCommandTimeoutMs,
     server: null,
     clients: new Map(),
     pendingById: new Map(),
@@ -804,7 +810,7 @@ async function handleHttpRequest(state, req, res) {
       writeJson(res, 401, { ok: false, error: "unauthorized bridge client" });
       return;
     }
-    const body = await readJsonBody(req);
+    const body = await readJsonBody(req, MAX_BRIDGE_RESULT_CHARS);
     const pending = state.pendingById.get(String(body.id || ""));
     if (!pending) {
       writeJson(res, 404, { ok: false, error: "unknown command id" });
@@ -926,7 +932,7 @@ async function callTool(state, name, args = {}) {
     return replaceFileWithSnapshots(state, args, nextText, "apply_patch_to_file", before);
   }
   if (name === "compile_and_read_log") {
-    const result = await sendCommand(state, args, "compile_project", args);
+    const result = await sendCommand(state, args, "compile_project", args, state.compileCommandTimeoutMs);
     const compileSummary = summarizeCompileLog(result);
     return { ...result, visibleStatus: compileSummary.statusText || result.visibleStatus || "", compileSummary };
   }
@@ -1675,7 +1681,7 @@ async function exportCurrentFile(state, args) {
 }
 
 async function exportCompileLog(state, args) {
-  const result = await sendCommand(state, args, "compile_project", args);
+  const result = await sendCommand(state, args, "compile_project", args, state.compileCommandTimeoutMs);
   const compileSummary = summarizeCompileLog(result);
   const projectTitle = result.projectTitle || args.projectTitle || "unknown-project";
   const text = [
@@ -2796,7 +2802,7 @@ function writeResultPayload(before, after, record, commandResult) {
   };
 }
 
-function sendCommand(state, target, type, payload) {
+function sendCommand(state, target, type, payload, timeoutMs = state.commandTimeoutMs) {
   const resolvedTarget = resolveTarget(state, target || {});
   const client = chooseClient(state, resolvedTarget);
   const id = crypto.randomUUID();
@@ -2810,7 +2816,7 @@ function sendCommand(state, target, type, payload) {
     const timeout = setTimeout(() => {
       state.pendingById.delete(id);
       reject(new Error(`timeout waiting for browser command ${type}`));
-    }, state.commandTimeoutMs);
+    }, timeoutMs);
     state.pendingById.set(id, { id, client, resolve, reject, timeout });
     enqueueCommand(client, command);
   });
@@ -3379,6 +3385,17 @@ function normalizeReplacementText(value, originalText) {
 }
 
 function summarizeCompileLog(result) {
+  if (result.compileCompleted === false) {
+    return {
+      errors: null,
+      warnings: null,
+      pages: null,
+      completed: false,
+      timedOut: Boolean(result.compileTimedOut),
+      statusText: String(result.visibleStatus || "Compile incomplete"),
+      logSnippet: ""
+    };
+  }
   const text = String(result.logSnippet || result.visibleStatus || "");
   const parsed = parseCompileStatusText(text);
   const errors = parsed.errors === null ? 0 : parsed.errors;
@@ -3388,6 +3405,8 @@ function summarizeCompileLog(result) {
     errors,
     warnings,
     pages,
+    completed: true,
+    timedOut: false,
     statusText: formatCompileStatusText(errors, warnings, pages, result.visibleStatus),
     logSnippet: text.slice(0, 4000)
   };
@@ -3591,13 +3610,13 @@ function writeJson(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-function readJsonBody(req) {
+function readJsonBody(req, maxLength = 5_000_000) {
   return new Promise((resolve, reject) => {
     let raw = "";
     req.setEncoding("utf8");
     req.on("data", (chunk) => {
       raw += chunk;
-      if (raw.length > 5_000_000) reject(new Error("request body too large"));
+      if (raw.length > maxLength) reject(new Error("request body too large"));
     });
     req.on("end", () => {
       if (!raw) return resolve({});
@@ -3656,9 +3675,8 @@ function sanitizeArtifactExportName(value, type) {
 
 function clampArtifactMaxBytes(value) {
   const requested = Number(value || 10 * 1024 * 1024);
-  const max = 25 * 1024 * 1024;
   if (!Number.isFinite(requested) || requested <= 0) return 10 * 1024 * 1024;
-  return Math.min(Math.floor(requested), max);
+  return Math.min(Math.floor(requested), MAX_ARTIFACT_BYTES);
 }
 
 function slugify(value) {
