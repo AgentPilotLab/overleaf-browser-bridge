@@ -2,8 +2,8 @@
 
 (() => {
   const DEFAULT_SERVER_URL = "http://127.0.0.1:38475";
-  const BRIDGE_VERSION = "0.5.31";
-  const FILE_OPERATION_UI_SCHEMA_VERSION = 9;
+  const BRIDGE_VERSION = "0.5.32";
+  const FILE_OPERATION_UI_SCHEMA_VERSION = 10;
   const POLL_DELAY_MS = 1000;
   const REGISTER_DELAY_MS = 5000;
   const CLIENT_ID_KEY = "overleafCodexBridgeClientId";
@@ -1124,13 +1124,32 @@
     if (!input) throw new Error("file operation dialog text input not found");
     const dialog = input.closest("[role='dialog'], [aria-modal='true'], .modal, [class*='dialog'], [class*='popover']");
     input.focus();
-    input.value = "";
-    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward", data: "" }));
-    input.value = text;
+    setNativeTextInputValue(input, text);
     input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
     await sleep(300);
     await clickConfirmationButton(buttonLabels, dialog || document);
+    if (dialog) {
+      const closed = await waitForElementToHide(dialog, 2500);
+      if (!closed) throw new Error("file operation dialog remained open after confirmation");
+    }
+  }
+
+  function setNativeTextInputValue(input, value) {
+    const tagName = String(input && input.tagName || "").toLowerCase();
+    const constructor = tagName === "textarea" ? window.HTMLTextAreaElement : window.HTMLInputElement;
+    const descriptor = constructor && Object.getOwnPropertyDescriptor(constructor.prototype, "value");
+    if (descriptor && typeof descriptor.set === "function") descriptor.set.call(input, value);
+    else input.value = value;
+  }
+
+  async function waitForElementToHide(element, timeoutMs) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      if (!element.isConnected || !isElementVisible(element)) return true;
+      await sleep(50);
+    }
+    return false;
   }
 
   function assertNoBlockingDialog() {
@@ -1974,6 +1993,7 @@
       splitCreatePath,
       assertNoBlockingDialog,
       fillDialogTextAndConfirm,
+      setNativeTextInputValue,
       clickOperationControl,
       findVisibleCreateMenuLauncher,
       openFile,

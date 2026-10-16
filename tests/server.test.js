@@ -111,7 +111,7 @@ async function main() {
       projectTitle: "Extension Origin Project",
       fileName: "main.tex",
       editorMode: "source",
-      contentScriptVersion: "0.5.31"
+      contentScriptVersion: "0.5.32"
     }
   });
   assert.strictEqual(extensionRegister.ok, true);
@@ -125,7 +125,7 @@ async function main() {
       projectTitle: "Regional Origin Project",
       fileName: "main.tex",
       editorMode: "source",
-      contentScriptVersion: "0.5.31"
+      contentScriptVersion: "0.5.32"
     }
   });
   assert.strictEqual(regionalOriginRegister.ok, true);
@@ -162,7 +162,7 @@ async function main() {
       projectTitle: "Lookalike Origin Project",
       fileName: "main.tex",
       editorMode: "source",
-      contentScriptVersion: "0.5.31"
+      contentScriptVersion: "0.5.32"
     },
     expectOk: false
   });
@@ -184,7 +184,7 @@ async function main() {
       projectTitle: "Extension Origin Project",
       fileName: "main.tex",
       editorMode: "source",
-      contentScriptVersion: "0.5.31"
+      contentScriptVersion: "0.5.32"
     }
   });
   assert.strictEqual(authenticatedExtensionRegister.ok, true);
@@ -476,7 +476,7 @@ async function main() {
   assert.strictEqual(postInstallSummary.expectedContentScriptVersion, JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8")).version);
   assert.ok(postInstallSummary.checks.some((check) => check.name === "content_script_version" && check.status === "pass"));
   assert.ok(postInstallSummary.checks.some((check) => check.name === "file_operation_ui_schema" && check.status === "pass"));
-  assert.ok(postInstallSummary.pages.every((page) => page.fileOperationUiSchemaVersion === 9));
+  assert.ok(postInstallSummary.pages.every((page) => page.fileOperationUiSchemaVersion === 10));
   assert.ok(postInstallSummary.pages.every((page) => !/project\/[A-Za-z0-9]+/.test(page.pageUrl)));
 
   const health = await bridge.callTool("health_check", {});
@@ -1490,7 +1490,7 @@ async function main() {
 
   const mcpInit = await handleMcpRequest(bridge, { jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
   assert.strictEqual(mcpInit.result.serverInfo.name, "overleaf-browser-bridge");
-  assert.strictEqual(mcpInit.result.serverInfo.version, "0.5.31");
+  assert.strictEqual(mcpInit.result.serverInfo.version, "0.5.32");
   const mcpTools = await handleMcpRequest(bridge, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
   for (const toolName of PUBLIC_TOOLS) assert.ok(mcpTools.result.tools.some((tool) => tool.name === toolName));
 
@@ -1675,12 +1675,12 @@ class FakeOverleafClient {
     this.selection = "";
     this.compileResult = options.compileResult || null;
     this.compileDelayMs = Number(options.compileDelayMs || 0);
-    this.contentScriptVersion = options.contentScriptVersion || "0.5.31";
+    this.contentScriptVersion = options.contentScriptVersion || "0.5.32";
     this.supportsArtifactInventory = options.supportsArtifactInventory !== false;
     this.artifactBytes = null;
     this.supportsFileOperationInspector = options.supportsFileOperationInspector !== false;
     this.legacyFileOperationUiSchema = Boolean(options.legacyFileOperationUiSchema);
-    this.fileOperationUiSchemaVersion = options.fileOperationUiSchemaVersion || 9;
+    this.fileOperationUiSchemaVersion = options.fileOperationUiSchemaVersion || 10;
     this.supportsUploadWorkflowInspector = options.supportsUploadWorkflowInspector !== false;
     this.supportsDownloadWorkflowInspector = options.supportsDownloadWorkflowInspector !== false;
     this.supportsVisibleCommentsInspector = options.supportsVisibleCommentsInspector !== false;

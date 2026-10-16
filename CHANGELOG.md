@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.32 - 2026-10-16
+
+- Update React-controlled Overleaf file-name inputs through the native value setter before dispatching input events.
+- Require the create or rename dialog to close after confirmation before treating the operation as submitted.
+
 ## 0.5.31 - 2026-10-16
 
 - Detect unrelated visible Overleaf dialogs before file creation instead of clicking through an overlay.
