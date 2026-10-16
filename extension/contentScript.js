@@ -2,8 +2,8 @@
 
 (() => {
   const DEFAULT_SERVER_URL = "http://127.0.0.1:38475";
-  const BRIDGE_VERSION = "0.5.30";
-  const FILE_OPERATION_UI_SCHEMA_VERSION = 8;
+  const BRIDGE_VERSION = "0.5.31";
+  const FILE_OPERATION_UI_SCHEMA_VERSION = 9;
   const POLL_DELAY_MS = 1000;
   const REGISTER_DELAY_MS = 5000;
   const CLIENT_ID_KEY = "overleafCodexBridgeClientId";
@@ -1029,8 +1029,9 @@
 
     if (operation === "create") {
       const createName = await selectParentFolderForCreate(fileName);
+      assertNoBlockingDialog();
       await clickOperationControl("create", "");
-      await fillDialogTextAndConfirm(createName, ["Create", "Add", "OK"], "create");
+      await fillDialogTextAndConfirm(createName, ["Create", "Add", "OK", "创建", "新建", "确定"], "create");
       const created = await revealFileTreeItem(fileName, 6000);
       if (!created) {
         throw new Error(`created file is not visible in the Overleaf file tree: ${fileName}`);
@@ -1039,11 +1040,11 @@
     } else if (operation === "rename") {
       await openFile(fileName);
       await clickOperationControl("rename", fileName);
-      await fillDialogTextAndConfirm(newFileName, ["Rename", "Save", "OK"], "rename");
+      await fillDialogTextAndConfirm(newFileName, ["Rename", "Save", "OK", "重命名", "保存", "确定"], "rename");
     } else if (operation === "delete") {
       await openFile(fileName);
       await clickOperationControl("delete", fileName);
-      await clickConfirmationButton(["Delete", "Remove", "OK"]);
+      await clickConfirmationButton(["Delete", "Remove", "OK", "删除", "移除", "确定"]);
     }
     await sleep(1200);
     return {
@@ -1121,6 +1122,7 @@
   async function fillDialogTextAndConfirm(text, buttonLabels, operation = "") {
     const input = findVisibleDialogTextInput(operation);
     if (!input) throw new Error("file operation dialog text input not found");
+    const dialog = input.closest("[role='dialog'], [aria-modal='true'], .modal, [class*='dialog'], [class*='popover']");
     input.focus();
     input.value = "";
     input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward", data: "" }));
@@ -1128,7 +1130,19 @@
     input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
     await sleep(300);
-    await clickConfirmationButton(buttonLabels);
+    await clickConfirmationButton(buttonLabels, dialog || document);
+  }
+
+  function assertNoBlockingDialog() {
+    const dialog = Array.from(document.querySelectorAll("[role='dialog'], [aria-modal='true'], .modal, [class*='dialog']"))
+      .find((candidate) => isElementVisible(candidate));
+    if (!dialog) return;
+    const label = cleanText([
+      dialog.textContent,
+      dialog.getAttribute("aria-label"),
+      dialog.getAttribute("title")
+    ].filter(Boolean).join(" ")).slice(0, 120);
+    throw new Error(`close the visible Overleaf dialog before creating a file${label ? `: ${label}` : ""}`);
   }
 
   function findVisibleDialogTextInput(operation = "") {
@@ -1169,7 +1183,7 @@
     if (tagName !== "input") return false;
     if (["email", "password", "search", "url", "tel", "number", "file", "checkbox", "radio", "hidden", "submit", "button"].includes(type)) return false;
     const label = getInputLabel(input).toLowerCase();
-    if (/\b(email|e-mail|share|collaborator|invite|message|comment|search|filter)\b/.test(label)) return false;
+    if (/\b(email|e-mail|share|collaborator|invite|message|comment|search|filter)\b|邮件|邮箱|共享|协作者|邀请|评论|搜索|筛选/.test(label)) return false;
     return !type || type === "text";
   }
 
@@ -1180,10 +1194,10 @@
     if (tagName === "input") score += 30;
     if (tagName === "textarea") score += 10;
     if (input.closest("[role='dialog'], [aria-modal='true'], .modal, [class*='dialog'], [class*='popover']")) score += 45;
-    if (/\b(file|filename|file name|name|path|new|rename)\b/.test(label)) score += 70;
-    if (operation === "create" && /\b(new|create|file|filename|name)\b/.test(label)) score += 30;
-    if (operation === "rename" && /\b(rename|file|filename|name)\b/.test(label)) score += 30;
-    if (/\b(email|e-mail|share|collaborator|invite|message|comment|search|filter)\b/.test(label)) score -= 120;
+    if (/\b(file|filename|file name|name|path|new|rename)\b|文件名|文件|名称|路径|新建|重命名/.test(label)) score += 70;
+    if (operation === "create" && (/\b(new|create|file|filename|name)\b|文件名|新建|创建/.test(label))) score += 30;
+    if (operation === "rename" && (/\b(rename|file|filename|name)\b|文件名|重命名/.test(label))) score += 30;
+    if (/\b(email|e-mail|share|collaborator|invite|message|comment|search|filter)\b|邮件|邮箱|共享|协作者|邀请|评论|搜索|筛选/.test(label)) score -= 120;
     return score;
   }
 
@@ -1197,9 +1211,9 @@
       .sort((a, b) => (b.score - a.score) || (a.index - b.index));
   }
 
-  async function clickConfirmationButton(labels) {
+  async function clickConfirmationButton(labels, scope = document) {
     const normalized = labels.map((label) => label.toLowerCase());
-    const button = Array.from(document.querySelectorAll("button, [role='button']"))
+    const button = Array.from(scope.querySelectorAll("button, [role='button']"))
       .find((candidate) => {
         if (!isElementVisible(candidate) || isDisabledControl(candidate)) return false;
         const label = cleanText([candidate.textContent, candidate.getAttribute("aria-label"), candidate.getAttribute("title")].filter(Boolean).join(" ")).toLowerCase();
@@ -1958,6 +1972,8 @@
       fileNameMatches,
       isFileLikeName,
       splitCreatePath,
+      assertNoBlockingDialog,
+      fillDialogTextAndConfirm,
       clickOperationControl,
       findVisibleCreateMenuLauncher,
       openFile,

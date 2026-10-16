@@ -111,7 +111,7 @@ async function main() {
       projectTitle: "Extension Origin Project",
       fileName: "main.tex",
       editorMode: "source",
-      contentScriptVersion: "0.5.30"
+      contentScriptVersion: "0.5.31"
     }
   });
   assert.strictEqual(extensionRegister.ok, true);
@@ -125,7 +125,7 @@ async function main() {
       projectTitle: "Regional Origin Project",
       fileName: "main.tex",
       editorMode: "source",
-      contentScriptVersion: "0.5.30"
+      contentScriptVersion: "0.5.31"
     }
   });
   assert.strictEqual(regionalOriginRegister.ok, true);
@@ -162,7 +162,7 @@ async function main() {
       projectTitle: "Lookalike Origin Project",
       fileName: "main.tex",
       editorMode: "source",
-      contentScriptVersion: "0.5.30"
+      contentScriptVersion: "0.5.31"
     },
     expectOk: false
   });
@@ -184,7 +184,7 @@ async function main() {
       projectTitle: "Extension Origin Project",
       fileName: "main.tex",
       editorMode: "source",
-      contentScriptVersion: "0.5.30"
+      contentScriptVersion: "0.5.31"
     }
   });
   assert.strictEqual(authenticatedExtensionRegister.ok, true);
@@ -476,7 +476,7 @@ async function main() {
   assert.strictEqual(postInstallSummary.expectedContentScriptVersion, JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8")).version);
   assert.ok(postInstallSummary.checks.some((check) => check.name === "content_script_version" && check.status === "pass"));
   assert.ok(postInstallSummary.checks.some((check) => check.name === "file_operation_ui_schema" && check.status === "pass"));
-  assert.ok(postInstallSummary.pages.every((page) => page.fileOperationUiSchemaVersion === 8));
+  assert.ok(postInstallSummary.pages.every((page) => page.fileOperationUiSchemaVersion === 9));
   assert.ok(postInstallSummary.pages.every((page) => !/project\/[A-Za-z0-9]+/.test(page.pageUrl)));
 
   const health = await bridge.callTool("health_check", {});
@@ -1490,7 +1490,7 @@ async function main() {
 
   const mcpInit = await handleMcpRequest(bridge, { jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
   assert.strictEqual(mcpInit.result.serverInfo.name, "overleaf-browser-bridge");
-  assert.strictEqual(mcpInit.result.serverInfo.version, "0.5.30");
+  assert.strictEqual(mcpInit.result.serverInfo.version, "0.5.31");
   const mcpTools = await handleMcpRequest(bridge, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
   for (const toolName of PUBLIC_TOOLS) assert.ok(mcpTools.result.tools.some((tool) => tool.name === toolName));
 
@@ -1675,12 +1675,12 @@ class FakeOverleafClient {
     this.selection = "";
     this.compileResult = options.compileResult || null;
     this.compileDelayMs = Number(options.compileDelayMs || 0);
-    this.contentScriptVersion = options.contentScriptVersion || "0.5.30";
+    this.contentScriptVersion = options.contentScriptVersion || "0.5.31";
     this.supportsArtifactInventory = options.supportsArtifactInventory !== false;
     this.artifactBytes = null;
     this.supportsFileOperationInspector = options.supportsFileOperationInspector !== false;
     this.legacyFileOperationUiSchema = Boolean(options.legacyFileOperationUiSchema);
-    this.fileOperationUiSchemaVersion = options.fileOperationUiSchemaVersion || 8;
+    this.fileOperationUiSchemaVersion = options.fileOperationUiSchemaVersion || 9;
     this.supportsUploadWorkflowInspector = options.supportsUploadWorkflowInspector !== false;
     this.supportsDownloadWorkflowInspector = options.supportsDownloadWorkflowInspector !== false;
     this.supportsVisibleCommentsInspector = options.supportsVisibleCommentsInspector !== false;
@@ -2246,6 +2246,43 @@ async function validateContentScriptDomHelpers() {
   const rankedInputs = hooks.rankDialogTextInputElements([shareInput, searchInput, fileNameInput], "create");
   assert.strictEqual(rankedInputs[0].input, fileNameInput);
   assert.ok(!rankedInputs.some((candidate) => candidate.input === shareInput));
+
+  const localizedDialog = new FakeElement("div", {
+    text: "新建文件",
+    attrs: { role: "dialog" }
+  });
+  const localizedFileNameInput = new FakeElement("input", {
+    parent: localizedDialog,
+    attrs: { type: "text", placeholder: "文件名" }
+  });
+  let localizedCreateClicked = false;
+  new FakeElement("button", {
+    parent: localizedDialog,
+    text: "创建",
+    onClick: () => { localizedCreateClicked = true; }
+  });
+  const localizedDialogHooks = loadContentScriptTestHooks({
+    querySelector: () => null,
+    querySelectorAll(selector) {
+      if (selector.includes("[role='dialog'] input")) return [localizedFileNameInput];
+      return [];
+    }
+  });
+  await localizedDialogHooks.fillDialogTextAndConfirm("supplementary.tex", ["Create", "创建"], "create");
+  assert.strictEqual(localizedFileNameInput.value, "supplementary.tex");
+  assert.strictEqual(localizedCreateClicked, true);
+
+  const shareDialog = new FakeElement("div", {
+    text: "共享该项目 添加邮件地址",
+    attrs: { role: "dialog" }
+  });
+  const blockingHooks = loadContentScriptTestHooks({
+    querySelectorAll(selector) {
+      if (selector.includes("[role='dialog']")) return [shareDialog];
+      return [];
+    }
+  });
+  assert.throws(() => blockingHooks.assertNoBlockingDialog(), /close the visible Overleaf dialog/);
 
   const sectionsFolder = new FakeElement("div", {
     text: "folder sections",

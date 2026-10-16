@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.31 - 2026-10-16
+
+- Detect unrelated visible Overleaf dialogs before file creation instead of clicking through an overlay.
+- Recognize Chinese file-name fields and confirmation actions while excluding Chinese sharing and invitation inputs.
+- Scope create and rename confirmation buttons to the active file-operation dialog.
+
 ## 0.5.30 - 2026-10-16
 
 - Recognize localized Overleaf file-tree actions, including Chinese `新建文件`, without confusing editor menus or PDF zoom controls for file operations.
